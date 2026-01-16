@@ -1,0 +1,74 @@
+---
+- name: configure webserver with nginx
+  hosts: webservers
+  become: true
+  gather_facts: false
+  vars:
+    tls_dir: /etc/nginx/ssl/
+    key_file: nginx.key
+    cert_file: nginx.crt
+    conf_file: /etc/nginx/sites-available/default
+    server_name: localhost
+  tasks:
+    - name: Ensure nginx is installed
+      package: 
+        name: nginx 
+        update_cache: true
+    
+    - name: create directories for TLS
+      file:
+        path: "{{ tls_dir }}"
+        state: directory
+        mode: "0750"
+      notify: Restart nginx
+    
+    - name: copy TLS certs
+      copy:
+        src: "{{ item }}"
+        dest: "{{ tls_dir }}"
+      loop:
+        - "{{ cert_file }}"
+        - "{{ key_file }}"
+      notify: Restart nginx
+
+    - name: copy nginx config file
+      template:
+        src: nginx.conf.j2
+        dest: "{{ conf_file }}"
+        mode: '0644'
+      notify: Restart nginx
+
+    - name: enable configuration
+      file:
+        dest: /etc/nginx/sites-enabled/default
+        src: "{{ conf_file }}"
+        state: link
+      notify: Restart nginx
+    
+    - name: install home package
+      template:
+        src: index.html.j2
+        dest: /usr/share/nginx/html/index.html
+        mode: "0644"
+    
+    - name: Restart nginx
+      meta: flush_handlers
+
+    - name: "Test webpage"
+      delegate_to: localhost
+      become: false
+      uri:
+        url: https://localhost:8443/index.html
+        validate_certs: false
+        return_content: true
+      register: this
+      failed_when: "'Running on ' not in this.content"
+      tags: 
+        - test
+
+
+  handlers:
+    - name: Restart nginx
+      service:
+        name: nginx
+        state: restarted
