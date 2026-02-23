@@ -1,0 +1,23 @@
+---
+- name: "Ansibe facts collector"
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: "Collecting ansible facts"
+      debug:
+        msg: >
+          Hostname: {{ ansible_facts['lsb'] }}
+      
+- name: "Ansible service facts collector"
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: "collecting sshd service status"
+      service_facts:
+    - debug: var=ansible_facts.services['sshd.service']['state']
+    - name: "Set sshd status fact"
+      when: ansible_facts.services['sshd.service']['state'] == 'running' or ansible_facts.services['sshd.service']['state'] == 'active'
+      set_fact:
+        sshd_status: "{{ ansible_facts.services['sshd.service']['state'] }}"
+ 
+        
